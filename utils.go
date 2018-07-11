@@ -222,7 +222,6 @@ var supportedHeaders = []string{
 	"content-encoding",
 	"content-disposition",
 	"content-language",
-	"content-md5",
 	"x-amz-website-redirect-location",
 	// Add more supported headers here.
 }

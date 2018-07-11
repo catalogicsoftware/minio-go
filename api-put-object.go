@@ -102,13 +102,11 @@ func (opts PutObjectOptions) Header() (header http.Header) {
 // validate() checks if the UserMetadata map has standard headers or and raises an error if so.
 func (opts PutObjectOptions) validate() (err error) {
 	for k, v := range opts.UserMetadata {
-		if k != "content-md5" {
-			if !httpguts.ValidHeaderFieldName(k) || isStandardHeader(k) || isSSEHeader(k) || isStorageClassHeader(k) {
-				return ErrInvalidArgument(k + " unsupported user defined metadata name")
-			}
-			if !httpguts.ValidHeaderFieldValue(v) {
-				return ErrInvalidArgument(v + " unsupported user defined metadata value")
-			}
+		if !httpguts.ValidHeaderFieldName(k) || isStandardHeader(k) || isSSEHeader(k) || isStorageClassHeader(k) {
+			return ErrInvalidArgument(k + " unsupported user defined metadata name")
+		}
+		if !httpguts.ValidHeaderFieldValue(v) {
+			return ErrInvalidArgument(v + " unsupported user defined metadata value")
 		}
 	}
 	return nil
