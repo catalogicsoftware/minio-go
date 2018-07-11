@@ -44,6 +44,7 @@ type PutObjectOptions struct {
 	NumThreads              uint
 	StorageClass            string
 	WebsiteRedirectLocation string
+	ForceChecksum           bool
 }
 
 // getNumThreads - gets the number of threads to be used in the multipart
@@ -108,7 +109,7 @@ func (opts PutObjectOptions) validate() (err error) {
 			if !httpguts.ValidHeaderFieldValue(v) {
 				return ErrInvalidArgument(v + " unsupported user defined metadata value")
 			}
- 		}
+		}
 	}
 	return nil
 }
@@ -147,6 +148,12 @@ func (c Client) putObjectCommon(ctx context.Context, bucketName, objectName stri
 	if s3utils.IsGoogleEndpoint(*c.endpointURL) {
 		// Do not compute MD5 for Google Cloud Storage.
 		return c.putObjectNoChecksum(ctx, bucketName, objectName, reader, size, opts)
+	}
+
+	// NOTE: Streaming signature is not supported by IBM COS.
+	if opts.ForceChecksum {
+		// Compute MD5 for IBM Cloud Storage.
+		return c.putObjectWithChecksum(ctx, bucketName, objectName, reader, size, opts)
 	}
 
 	if c.overrideSignerType.IsV2() {

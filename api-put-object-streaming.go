@@ -19,6 +19,8 @@ package minio
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -360,6 +362,70 @@ func (c Client) putObjectNoChecksum(ctx context.Context, bucketName, objectName 
 	// This function does not calculate sha256 and md5sum for payload.
 	// Execute put object.
 	st, err := c.putObjectDo(ctx, bucketName, objectName, readSeeker, "", "", size, opts)
+	if err != nil {
+		return 0, err
+	}
+	if st.Size != size {
+		return 0, ErrUnexpectedEOF(st.Size, size, bucketName, objectName)
+	}
+	return size, nil
+}
+
+// putObjectWithChecksum special function used IBM Cloud Object Storage. This special function
+// is used for IBM Cloud Object Storage since IBM's multipart API is not S3 compatible.
+func (c Client) putObjectWithChecksum(ctx context.Context, bucketName, objectName string, reader io.Reader, size int64, opts PutObjectOptions) (n int64, err error) {
+	// Input validation.
+	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
+		return 0, err
+	}
+	if err := s3utils.CheckValidObjectName(objectName); err != nil {
+		return 0, err
+	}
+
+	if size > 0 {
+		if isReadAt(reader) && !isObject(reader) {
+			seeker, _ := reader.(io.Seeker)
+			offset, err := seeker.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return 0, ErrInvalidArgument(err.Error())
+			}
+			reader = io.NewSectionReader(reader.(io.ReaderAt), offset, size)
+		}
+	}
+
+	buf := make([]byte, size)
+
+	length, rErr := io.ReadFull(reader, buf)
+
+	if rErr != nil && rErr != io.ErrUnexpectedEOF {
+		return 0, rErr
+	}
+
+	hashAlgos, hashSums := c.hashMaterials()
+
+	for k, v := range hashAlgos {
+		v.Write(buf[:length])
+		hashSums[k] = v.Sum(nil)
+	}
+
+	var (
+		md5Base64 string
+		sha256Hex string
+	)
+	if hashSums["md5"] != nil {
+		md5Base64 = base64.StdEncoding.EncodeToString(hashSums["md5"])
+	}
+	if hashSums["sha256"] != nil {
+		sha256Hex = hex.EncodeToString(hashSums["sha256"])
+	}
+
+	// Update progress reader appropriately to the latest offset as we
+	// read from the source.
+	readSeeker := newHook(reader, opts.Progress)
+
+	// This function does calculate sha256 and md5sum for payload.
+	// Execute put object.
+	st, err := c.putObjectDo(ctx, bucketName, objectName, readSeeker, md5Base64, sha256Hex, size, opts)
 	if err != nil {
 		return 0, err
 	}
