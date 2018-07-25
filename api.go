@@ -811,7 +811,9 @@ func (c Client) newRequest(method string, metadata requestMetadata) (req *http.R
 // set User agent.
 func (c Client) setUserAgent(req *http.Request) {
 	req.Header.Set("User-Agent", libraryUserAgent)
-	if c.appInfo.appName != "" && c.appInfo.appVersion != "" {
+	if c.appInfo.appName == "User-Agent" && c.appInfo.appVersion != "" {
+		req.Header.Set("User-Agent", c.appInfo.appVersion)
+	} else if c.appInfo.appName != "" && c.appInfo.appVersion != "" {
 		req.Header.Set("User-Agent", libraryUserAgent+" "+c.appInfo.appName+"/"+c.appInfo.appVersion)
 	}
 }
